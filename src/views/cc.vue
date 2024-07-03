@@ -7,9 +7,11 @@
  * @LastEditTime: 2024-06-24 15:50:17
 -->
 <template>
-    <div>
-      <!-- <h1>3D展示</h1> -->
+    <div class="container">
       <canvas ref="canvasRef" class="canvas"></canvas>
+      <div class="btn">
+        <a-button style="background-color: #efefef;border: none;" @click="switchLight">{{ light?.value?.intensity === 1 ? '关灯' : '开灯' }}</a-button>
+      </div>
     </div>
   </template>
   
@@ -19,13 +21,28 @@
   import "@babylonjs/loaders";
   import "@babylonjs/inspector";
   import navList from "../utils/navList";
+  import { useUserStore } from '@/store/user';
+  // 导入 Message 组件
+  import { message } from 'ant-design-vue';
+  import { storeToRefs } from 'pinia';
   
   let loopIndex = 0;
   const canvasRef = ref(null);
   const camera = ref(null);
+  const light=ref(null)
   const activeKey = ref(0);
   const cacheName = reactive([]);
+  const userStore = useUserStore();
+  const { userList } = storeToRefs(userStore);
   
+  const switchLight=()=>{
+    if(light.value.intensity === 1){
+      light.value.intensity = 0.1
+    
+    } else{
+      light.value.intensity = 1
+    } 
+  }
   const showModel = ({ position, target }) => {
     animateCamera("position", new BABYLON.Vector3(...position), camera.value);
     animateCamera("target", new BABYLON.Vector3(...target), camera.value);
@@ -53,17 +70,19 @@
   
   // 聚焦到某一个物体或区域的视角
   const selectModel = (names, animation, scene) => {
-    scene.meshes.forEach((mesh) => {
-      if (cacheName.includes(mesh.name)) {
-        mesh.material.albedoColor = scene.cacheMeshColor;
-      }
-      if (names.includes(mesh.name)) {
-        scene.cacheMeshColor = mesh.material.albedoColor;
-        cacheName.push(...names);
-        mesh.material.albedoColor = new BABYLON.Color3(0, 221 / 255, 1);
-        showModel(animation);
-      }
-    });
+    if(scene){
+      scene.meshes.forEach((mesh) => {
+        if (cacheName.includes(mesh.name)) {
+          mesh.material.albedoColor = scene.cacheMeshColor;
+        }
+        if (names.includes(mesh.name)) {
+          scene.cacheMeshColor = mesh.material.albedoColor;
+          cacheName.push(...names);
+          mesh.material.albedoColor = new BABYLON.Color3(0, 221 / 255, 1);
+          showModel(animation);
+        }
+      });
+    }
   }
   
   // 生成地面
@@ -219,23 +238,38 @@
       camera.value.upperRadiusLimit = 40;
       // camera.position = new BABYLON.Vector3(0, 6, -6)
       // const sphere = addSphere(scene);
-      const light = new BABYLON.HemisphericLight(
+      light.value = new BABYLON.HemisphericLight(
         "HemisphericLight",
         new BABYLON.Vector3(0, 1, 0),
         this
       )
-  
-      light.intensity = 1
+      light.value.intensity = 0.1
       // light.diffuse = new BABYLON.Color3(1, 0, 0);
-        light.specular = new BABYLON.Color3(1, 1, 0);
+      light.value.specular = new BABYLON.Color3(1, 1, 0);
       // light.groundColor = new BABYLON.Color3(0, 0, 0.4);
   
       // const desk = addDesk(scene);
       // addTable(scene);
   
-      BABYLON.SceneLoader.Append('/model/', 'library_draco.glb', scene, (meshes) => {
+      BABYLON.SceneLoader.Append("/model/", "library_draco.glb", scene, (meshes) => {
         console.log(meshes)
+
+        const myElement=scene.getMeshById("lpFemale_casual_G");
+        console.log(myElement)
+        if(myElement){
+          myElement.actionManager=new BABYLON.ActionManager(scene)
+          myElement.actionManager.registerAction(new BABYLON.ExecuteCodeAction
+            (BABYLON.ActionManager.OnPickTrigger,function(){
+              message.info({
+                content: `当前学生人数: ${userList.value.length}人`,
+                duration: 1
+              })        
+            })
+          )
+        }
         showModel(animation)
+        // 调用 selectModel 函数
+        selectModel(navList[loopIndex].names, navList[loopIndex].animation, scene);
       })
   
       // scene.gravity = new BABYLON.Vector3(0, -9.81, 0);
@@ -249,8 +283,8 @@
       // BABYLON.SceneLoader.ImportMesh("", "assets/", "Alien.gltf", scene, function (meshes) {          
       //     scene.createDefaultCameraOrLight(true, true, true);
       //     scene.createDefaultEnvironment();
-      // });
-      
+      // });     
+
       engine.runRenderLoop(() => {
         scene.render();
       })
@@ -261,10 +295,9 @@
       window.addEventListener('resize', () => {
         engine.resize();
       })
-      // autoPlay(scene);
+      autoPlay(scene);
     }
   }
-  
   // 触发视角切换逻辑
   const autoPlay = (scene) => {
     const play = () => {
@@ -285,10 +318,26 @@
   
   </script>
   
-  <style scoped>
-  .canvas {
-    /* position: absolute; */
+<style scoped>
+  .container {
+    display: flex;
+    justify-content: space-between;
     width: 100%;
-    height: 90vh;
+    height: 100vh;
+    position: relative;
   }
-  </style>  
+  .canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0; /* 确保canvas在最底层 */
+  }
+  .btn {
+    position: absolute;
+    top: 10px; 
+    left: 10px; 
+    z-index: 10; 
+  }
+</style>  
